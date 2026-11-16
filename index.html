@@ -43,6 +43,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .seg button{padding:8px 12px;font-size:15px}
 .seg button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:#24170F}
 .subopts{display:grid;gap:8px;padding:12px;border:1px dashed var(--line);border-radius:8px}
+.subdiv{border:0;border-top:1px solid var(--line);margin:4px 0;width:100%}
 .sublabel{font-size:13px;color:var(--muted);font-weight:600}
 .pickrow{display:flex;align-items:center;gap:10px}
 .pickrow input{width:52px;height:36px;padding:0;border:1px solid var(--line);border-radius:8px;background:none}
@@ -103,6 +104,8 @@ textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;
           <button data-v="vintage">Vintage</button>
           <button data-v="graywash">Graywash</button>
         </div>
+        <hr class="subdiv">
+        <span class="sublabel">Extras</span>
         <div class="seg"><button id="paintBtn" aria-pressed="false">Court paint</button><button id="heroBtn" aria-pressed="true">#1 spotlight</button></div>
       </div>
       <div class="seg" id="sizeSeg" role="group" aria-label="Size">
