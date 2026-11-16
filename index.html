@@ -30,6 +30,7 @@ header.top h1 span{color:var(--accent)}
 header.top p{margin:0;color:var(--muted);font-size:14px}
 .preview{background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .preview canvas{display:block;width:100%;height:auto}
+.preview.drag{outline:3px dashed var(--accent);outline-offset:3px}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 button{font:inherit;font-weight:600;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:10px 14px}
 button.primary{background:var(--accent);border-color:var(--accent);color:#140700}
@@ -74,7 +75,7 @@ textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;
       <button class="primary" id="saveBtn" hidden>Save PNG</button>
       <button id="openBtn">Open image to save</button>
     </div>
-    <div class="status" id="status" role="status"></div>
+    <div class="status" id="status" role="status">Tip: tap any team in the preview to add its logo.</div>
   </div>
 
   <div class="controls">
@@ -121,9 +122,15 @@ textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;
 
     <section class="panel">
       <h2>Logos (optional)</h2>
-      <p class="hint">Teams get a badge in their school colors by default. To use real logos, add image files named after the team, like <code>florida.png</code> or <code>michigan-state.png</code>. They stay in this browser.</p>
+      <p class="hint">Each team shows a badge in its school colors until you give it a logo. The logo takes the badge's spot next to the name, sized and lined up for you.</p>
+      <ul class="steps" style="font-size:14px">
+        <li><b>One team:</b> tap the team in the preview and pick the image.</li>
+        <li><b>On a computer:</b> drag a logo onto the team's row in the preview.</li>
+        <li><b>A bunch at once:</b> drop them all on the preview or use the button below. Files are matched by name, so <code>michigan_st_logo.png</code> finds Michigan State.</li>
+      </ul>
+      <p class="hint">Logos are saved in this browser and stay through every week's list.</p>
       <div class="actions" style="margin:0">
-        <button id="logoBtn">Add logo files</button>
+        <button id="logoBtn">Add several logos</button>
         <input type="file" id="logoInput" accept="image/*" multiple hidden>
         <button id="logoClear">Remove all logos</button>
       </div>
@@ -423,8 +430,15 @@ function logoFor(row){
 function badge(row,cx,cy,r,ringOnLight){
   const L = logoFor(row);
   if(L){
-    const im=L.img, sc=Math.min((r*2.1)/im.width,(r*2.1)/im.height);
-    ctx.drawImage(im,cx-im.width*sc/2,cy-im.height*sc/2,im.width*sc,im.height*sc);
+    const im=L.img;
+    if(!ringOnLight){
+      ctx.beginPath(); ctx.arc(cx,cy,r*1.08,0,Math.PI*2); ctx.fillStyle="#FFFFFF"; ctx.fill();
+      const sc=Math.min((r*1.5)/im.width,(r*1.5)/im.height);
+      ctx.drawImage(im,cx-im.width*sc/2,cy-im.height*sc/2,im.width*sc,im.height*sc);
+    } else {
+      const sc=Math.min((r*2.2)/im.width,(r*2.2)/im.height);
+      ctx.drawImage(im,cx-im.width*sc/2,cy-im.height*sc/2,im.width*sc,im.height*sc);
+    }
     return;
   }
   const t=row.team;
@@ -468,7 +482,9 @@ function ball(cx,cy,r,col,lw){
 }
 
 /* Generic team row. S = style spec */
+let hits=[]; // row rectangles from the last render, for tap and drop
 function drawRow(row,x,y,w,h,S){
+  hits.push({x,y,w,h,row});
   if(S.rowBg){ rr(x,y,w,h,S.radius||0); ctx.fillStyle=S.rowBg(row); ctx.fill(); }
   ctx.fillStyle=row.team.p; ctx.fillRect(x,y,S.bar,h);
   const rankW = h*1.05;
@@ -604,6 +620,7 @@ function drawHardwood(W,H,rows){
     ctx.fillStyle=INK; rr(M,top,W-2*M,hh,6); ctx.fill();
     ctx.fillStyle=r.team.p; ctx.fillRect(M,top,12,hh);
     ctx.textBaseline="middle"; ctx.textAlign="left"; ctx.fillStyle=A; ctx.font=font(400,hh*0.86,"Anton"); ctx.fillText("1",M+38,top+hh/2+6);
+    hits.push({x:M,y:top,w:W-2*M,h:hh,row:r});
     const br=hh*0.32, bx=M+150+br; badge(r,bx,top+hh/2,br,false);
     const cw=150; const chipX=W-M-cw-24;
     if(r.mv) chip(r.mv,chipX+cw-hh*0.62,top+hh/2-hh*0.15,hh*0.6,hh*0.3,{up:"#4ADE80",down:"#F87171",newc:A,neutral:"#6B5F52",chipAlpha:.2});
@@ -690,7 +707,7 @@ function drawBoard(W,H,rows){
 function render(){
   const W=1080, H=state.size==="story"?1920:1350;
   if(cv.height!==H){ cv.width=W; cv.height=H; }
-  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,W,H); spacing(0);
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,W,H); spacing(0); hits=[];
   const rows=parseList(state.list||"");
   ({primetime:drawPrimetime,hardwood:drawHardwood,board:drawBoard}[state.tpl]||drawPrimetime)(W,H,rows);
 }
@@ -716,27 +733,66 @@ $("exB12").onclick=()=>{ Object.assign(state,EXB12); syncInputs(); update(); set
 function setStatus(t){ $("status").textContent=t; }
 function renderLogoList(){
   const box=$("logoList"); box.innerHTML="";
-  Object.keys(logos).sort().forEach(k=>{ const c=document.createElement("span"); c.className="chip"; c.textContent=k;
+  Object.keys(logos).sort().forEach(k=>{ const c=document.createElement("span"); c.className="chip"; c.textContent=(TEAMS.get(k)||{}).name||k.replace(/\b\w/g,m=>m.toUpperCase());
     const x=document.createElement("button"); x.setAttribute("aria-label","Remove "+k+" logo"); x.textContent="×";
     x.onclick=()=>{ delete logos[k]; saveLogos(); renderLogoList(); render(); }; c.appendChild(x); box.appendChild(c); });
 }
-$("logoBtn").onclick=()=>$("logoInput").click();
-$("logoInput").onchange=e=>{
-  [...e.target.files].forEach(file=>{
-    const key=norm(file.name.replace(/\.[^.]+$/,""));
+/* --- Logos: tap a team, drop on a team, or drop a batch and match by file name --- */
+function keyForRow(row){ return TEAMS.has(norm(row.name)) ? norm(row.team.name) : norm(row.name); }
+function loadLogoFile(file,key){
+  return new Promise(res=>{
     const fr=new FileReader();
-    fr.onload=()=>{
-      const im=new Image(); im.onload=()=>{
-        const c=document.createElement("canvas"), sc=Math.min(1,256/Math.max(im.width,im.height));
-        c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc); c.getContext("2d").drawImage(im,0,0,c.width,c.height);
-        addLogo(key,c.toDataURL("image/png"),true);
-      }; im.src=fr.result;
-    };
-    fr.readAsDataURL(file);
+    fr.onload=()=>{ const im=new Image();
+      im.onload=()=>{ const c=document.createElement("canvas"), sc=Math.min(1,256/Math.max(im.width,im.height));
+        c.width=Math.max(1,Math.round(im.width*sc)); c.height=Math.max(1,Math.round(im.height*sc)); c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+        addLogo(key,c.toDataURL("image/png"),true); res(true); };
+      im.onerror=()=>res(false); im.src=fr.result; };
+    fr.onerror=()=>res(false); fr.readAsDataURL(file);
   });
-  e.target.value="";
-  setStatus("Logos added. A logo shows when its file name matches the team name.");
-};
+}
+const JUNK=/\b(logo|logos|primary|alt|alternate|secondary|icon|mark|ncaa|ncaab|cbb|mbb|mens|basketball|athletics|university|of|the|png|jpg|jpeg|svg|webp|transparent|dark|light|color|full|\d+)\b/g;
+function matchFile(fname){
+  let base=norm(fname.replace(/\.[^.]+$/,"")).replace(JUNK," ").replace(/\s+/g," ").trim();
+  const tries=[base, base.replace(/\bst$/,"state"), base.replace(/\bu$/,"").trim()];
+  for(const b of tries){ if(TEAMS.has(b)) return norm(TEAMS.get(b).name); }
+  const rows=parseList(state.list||"");
+  for(const b of tries){ const r=rows.find(r=>norm(r.name)===b||r.team.abbr.toLowerCase()===b); if(r) return keyForRow(r); }
+  for(const t of TEAMS.values()){ if(t.abbr.toLowerCase()===base) return norm(t.name); }
+  // longest team name that appears as whole words in the file name
+  let best=null, bestLen=0; const padded=" "+base+" ";
+  const consider=(n,key)=>{ if(n.length>bestLen && padded.includes(" "+n+" ")){ best=key; bestLen=n.length; } };
+  TEAMS.forEach((t,k)=>consider(k,norm(t.name)));
+  rows.forEach(r=>consider(norm(r.name),keyForRow(r)));
+  return best;
+}
+async function addFiles(files,targetRow){
+  files=[...files].filter(f=>/^image\//.test(f.type)||/\.(png|jpe?g|webp|gif|svg)$/i.test(f.name));
+  if(!files.length){ setStatus("That wasn't an image file. Use PNG or JPG logos."); return; }
+  if(targetRow){ await loadLogoFile(files[0],keyForRow(targetRow)); setStatus(`Logo set for ${targetRow.name}.`); return; }
+  const missed=[]; let ok=0;
+  for(const f of files){ const k=matchFile(f.name); if(k){ if(await loadLogoFile(f,k)) ok++; } else missed.push(f.name); }
+  setStatus(`${ok} logo${ok===1?"":"s"} added.`+(missed.length?` Couldn't tell which team these are: ${missed.join(", ")}. Tap that team in the preview and pick the file instead.`:""));
+}
+let pendingRow=null;
+$("logoBtn").onclick=()=>{ pendingRow=null; $("logoInput").click(); };
+$("logoInput").onchange=e=>{ const fs=e.target.files; addFiles(fs,pendingRow); pendingRow=null; e.target.value=""; };
+
+function hitAt(clientX,clientY){
+  const b=cv.getBoundingClientRect(), x=(clientX-b.left)*cv.width/b.width, y=(clientY-b.top)*cv.height/b.height;
+  return hits.find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h)||null;
+}
+cv.style.cursor="pointer";
+cv.addEventListener("click",e=>{ const h=hitAt(e.clientX,e.clientY); if(!h) return;
+  pendingRow=h.row; setStatus(`Pick a logo for ${h.row.name}.`); $("logoInput").click(); });
+let hoverHit=null;
+function outline(h){ render(); if(!h) return; ctx.save(); ctx.strokeStyle=state.accent; ctx.lineWidth=6; ctx.setLineDash([14,10]); ctx.strokeRect(h.x-3,h.y-3,h.w+6,h.h+6); ctx.restore(); }
+const pv=document.querySelector(".preview");
+pv.addEventListener("dragover",e=>{ e.preventDefault(); const h=hitAt(e.clientX,e.clientY); if(h!==hoverHit){ hoverHit=h; outline(h); } pv.classList.add("drag"); });
+pv.addEventListener("dragleave",()=>{ hoverHit=null; pv.classList.remove("drag"); render(); });
+pv.addEventListener("drop",e=>{ e.preventDefault(); pv.classList.remove("drag"); const h=hitAt(e.clientX,e.clientY); hoverHit=null; render();
+  const fs=e.dataTransfer.files; addFiles(fs, fs.length===1&&h ? h.row : null); });
+document.addEventListener("dragover",e=>e.preventDefault());
+document.addEventListener("drop",e=>{ if(!pv.contains(e.target)){ e.preventDefault(); if(e.dataTransfer.files.length) addFiles(e.dataTransfer.files,null); } });
 $("logoClear").onclick=()=>{ logos={}; saveLogos(); renderLogoList(); render(); };
 
 function fileName(){ return ((state.title||"rankings")+" "+(state.week||"")).trim().toLowerCase().replace(/[^a-z0-9]+/g,"-")+".png"; }
