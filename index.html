@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rankings Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=Archivo+Narrow:wght@500;700&family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Studio UI: a dim control room so the graphic is the brightest thing on screen. Preview first, controls below. */
+  --bg:#0F1013;
+  --panel:#191B20;
+  --line:#2A2D35;
+  --text:#ECEDEF;
+  --muted:#9097A3;
+  --accent:#FF6B1A;
+  --ui:"Barlow",system-ui,-apple-system,sans-serif;
+  --display:"Big Shoulders Display","Barlow Condensed",Impact,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--ui);font-size:16px;line-height:1.45}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px;display:grid;gap:20px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:900px){.wrap{grid-template-columns:minmax(0,520px) minmax(0,1fr);align-items:start}.preview-col{position:sticky;top:16px}}
+header.top{grid-column:1/-1;display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+header.top h1{font-family:var(--display);font-weight:900;font-size:34px;letter-spacing:.5px;margin:0;text-transform:uppercase}
+header.top h1 span{color:var(--accent)}
+header.top p{margin:0;color:var(--muted);font-size:14px}
+.preview{background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.preview canvas{display:block;width:100%;height:auto}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+button{font:inherit;font-weight:600;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--text);padding:10px 14px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#140700}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.status{color:var(--muted);font-size:14px;margin-top:8px;min-height:1.4em}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:14px}
+.panel h2{margin:0;font-family:var(--display);font-weight:800;font-size:20px;text-transform:uppercase;letter-spacing:.6px}
+.controls{display:grid;gap:16px}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{padding:8px 12px;font-size:15px}
+.seg button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);background:#24170F}
+.swatches{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.sw{width:36px;height:36px;border-radius:50%;padding:0;border:3px solid transparent}
+.sw[aria-pressed="true"]{border-color:#fff}
+label{display:grid;gap:5px;font-size:14px;color:var(--muted);font-weight:600}
+input[type=text],textarea{font:inherit;color:var(--text);background:#0F1013;border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;line-height:1.5;resize:vertical}
+.grid2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.hint{font-size:13px;color:var(--muted);font-weight:400;margin:0}
+.hint code{background:#0F1013;border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--text)}
+.logos{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#0F1013;border:1px solid var(--line);border-radius:999px;padding:4px 6px 4px 10px;font-size:13px}
+.chip button{padding:0 6px;border:none;background:none;color:var(--muted);font-size:16px;line-height:1}
+.steps{margin:0;padding-left:20px;display:grid;gap:6px;color:var(--text);font-size:15px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;z-index:10}
+.overlay.show{display:flex}
+.overlay img{max-width:100%;max-height:80%;border-radius:6px}
+.overlay p{margin:0;color:#ddd;text-align:center}
+@media (prefers-reduced-motion:no-preference){button{transition:background .15s,border-color .15s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Rankings <span>Studio</span></h1>
+    <p>Pick a look, paste your list, save the image.</p>
+  </header>
+
+  <div class="preview-col">
+    <div class="preview"><canvas id="cv" width="1080" height="1350" aria-label="Rankings graphic preview"></canvas></div>
+    <div class="actions">
+      <button class="primary" id="saveBtn" hidden>Save PNG</button>
+      <button id="openBtn">Open image to save</button>
+    </div>
+    <div class="status" id="status" role="status"></div>
+  </div>
+
+  <div class="controls">
+    <section class="panel">
+      <h2>Look</h2>
+      <div class="seg" id="tplSeg" role="group" aria-label="Template">
+        <button data-v="primetime">Primetime</button>
+        <button data-v="hardwood">Hardwood</button>
+        <button data-v="board">Big Board</button>
+      </div>
+      <div class="seg" id="sizeSeg" role="group" aria-label="Size">
+        <button data-v="feed">Feed post 4:5</button>
+        <button data-v="story">Story 9:16</button>
+      </div>
+      <div class="swatches" id="swatches" role="group" aria-label="Accent color"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Header</h2>
+      <div class="grid2">
+        <label for="brand">Your name on the title<input type="text" id="brand"></label>
+        <label for="kicker">Line next to your name<input type="text" id="kicker"></label>
+        <label for="title">Big title<input type="text" id="title"></label>
+        <label for="week">Week tag<input type="text" id="week"></label>
+        <label for="handle">Your handle<input type="text" id="handle"></label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Rankings</h2>
+      <label for="list">One team per line: <span style="color:var(--text)">Team, Record, Last week's rank</span>
+        <textarea id="list" rows="14" spellcheck="false"></textarea>
+      </label>
+      <p class="hint">Record and last week's rank are optional. Use <code>NR</code> for newly ranked teams. Arrows, colors and the biggest riser and faller fill in on their own. Works for any count: a Top 25, a 16-team conference, a Top 10.</p>
+      <label for="next">Next up / Also receiving votes (comma separated)<input type="text" id="next"></label>
+      <label for="tiers" id="tiersWrap">Tiers (Big Board only): <span style="color:var(--text)">range, label</span>
+        <textarea id="tiers" rows="4" spellcheck="false"></textarea>
+      </label>
+      <div class="actions">
+        <button id="ex25">Load Top 25 example</button>
+        <button id="exB12">Load Big 12 example</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Logos (optional)</h2>
+      <p class="hint">Teams get a badge in their school colors by default. To use real logos, add image files named after the team, like <code>florida.png</code> or <code>michigan-state.png</code>. They stay in this browser.</p>
+      <div class="actions" style="margin:0">
+        <button id="logoBtn">Add logo files</button>
+        <input type="file" id="logoInput" accept="image/*" multiple hidden>
+        <button id="logoClear">Remove all logos</button>
+      </div>
+      <div class="logos" id="logoList"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Weekly routine</h2>
+      <ol class="steps">
+        <li>Open this page and pick a template (your choice is remembered).</li>
+        <li>Update the week tag, then edit the list: move teams, update records, set last week's rank.</li>
+        <li>Tap <b>Save PNG</b>, or <b>Open image to save</b> and long-press it to save to Photos.</li>
+        <li>Post it. Feed size for the grid, Story size for stories.</li>
+      </ol>
+    </section>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" role="dialog" aria-label="Image ready to save">
+  <img id="outImg" alt="Rankings graphic">
+  <p>Long-press the image and choose Save to Photos.</p>
+  <button id="closeOv">Close</button>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- Team colors: Name|ABBR|primary|secondary|aliases ---------- */
+const TEAM_DATA = `Florida|UF|#0021A5|#FA4616
+UConn|UCONN|#000E2F|#A2AAAD|connecticut
+Michigan State|MSU|#18453B|#FFFFFF|mich state
+Virginia|UVA|#232D4B|#F84C1E
+Duke|DUKE|#003087|#FFFFFF
+Kansas|KU|#0051BA|#E8000D
+Texas|TEX|#BF5700|#FFFFFF
+Houston|UH|#C8102E|#FFFFFF
+Illinois|ILL|#13294B|#E84A27
+St. John's|SJU|#BA0C2F|#FFFFFF|st johns,saint johns
+UCLA|UCLA|#2D68C4|#F2A900
+Arizona|ARIZ|#003366|#CC0033
+Texas Tech|TTU|#CC0000|#000000
+Vanderbilt|VANDY|#000000|#CFAE70|vandy
+Miami|MIA|#F47321|#005030|miami fl
+Alabama|BAMA|#9E1B32|#FFFFFF
+Gonzaga|ZAGS|#041E42|#C8102E|zags
+Nebraska|NEB|#E41C38|#FFFFFF
+BYU|BYU|#002E5D|#FFFFFF
+Arkansas|ARK|#9D2235|#FFFFFF
+Memphis|MEM|#003087|#898D8D
+Tennessee|TENN|#FF8200|#FFFFFF|tennessse
+LSU|LSU|#461D7C|#FDD023
+Louisville|LOU|#AD0000|#000000
+Michigan|MICH|#00274C|#FFCB05
+USC|USC|#990000|#FFC72C
+Texas A&M|TAMU|#500000|#FFFFFF|texas am
+High Point|HPU|#330072|#FFFFFF
+Xavier|XAV|#0C2340|#9EA2A2
+Baylor|BAY|#154734|#FFB81C
+Iowa State|ISU|#C8102E|#F1BE48
+Cincinnati|CINCY|#E00122|#000000|cincy
+TCU|TCU|#4D1979|#FFFFFF
+West Virginia|WVU|#002855|#EAAA00
+Oklahoma State|OKST|#FF7300|#000000
+Arizona State|ASU|#8C1D40|#FFC627
+UCF|UCF|#000000|#BA9B37
+Kansas State|KSU|#512888|#FFFFFF|k state
+Colorado|COLO|#000000|#CFB87C
+Utah|UTAH|#CC0000|#FFFFFF
+Ohio State|OSU|#BB0000|#666666
+Purdue|PUR|#000000|#CFB991
+Indiana|IU|#990000|#FFFFFF
+Iowa|IOWA|#000000|#FFCD00
+Wisconsin|WIS|#C5050C|#FFFFFF
+Maryland|MD|#E03A3E|#FFD520
+Minnesota|MINN|#7A0019|#FFCC33
+Northwestern|NU|#4E2A84|#FFFFFF
+Oregon|ORE|#154733|#FEE123
+Washington|UW|#4B2E83|#B7A57A
+Penn State|PSU|#041E42|#FFFFFF
+Rutgers|RU|#CC0033|#FFFFFF
+North Carolina|UNC|#7BAFD4|#13294B|unc,carolina
+NC State|NCST|#CC0000|#FFFFFF|north carolina state
+Clemson|CLEM|#F56600|#522D80
+Wake Forest|WAKE|#000000|#9E7E38
+Pitt|PITT|#003594|#FFB81C|pittsburgh
+Syracuse|CUSE|#F76900|#000E54
+Notre Dame|ND|#0C2340|#C99700
+Virginia Tech|VT|#630031|#CF4420
+Georgia Tech|GT|#003057|#B3A369
+Florida State|FSU|#782F40|#CEB888
+Boston College|BC|#8A100B|#BC9B6A
+SMU|SMU|#0033A0|#C8102E
+Stanford|STAN|#8C1515|#FFFFFF
+California|CAL|#003262|#FDB515|cal
+Kentucky|UK|#0033A0|#FFFFFF
+Auburn|AUB|#0C2340|#E87722
+Ole Miss|MISS|#CE1126|#14213D
+Mississippi State|MSST|#660000|#FFFFFF
+Missouri|MIZ|#000000|#F1B82D|mizzou
+Georgia|UGA|#BA0C2F|#000000
+South Carolina|SC|#73000A|#FFFFFF
+Oklahoma|OU|#841617|#FDF9D8
+Marquette|MARQ|#003366|#FFCC00
+Creighton|CREI|#005CA9|#FFFFFF
+Villanova|NOVA|#00205B|#13B5EA|nova
+Providence|PROV|#000000|#A2AAAD
+Butler|BUT|#13294B|#FFFFFF
+Seton Hall|SHU|#004488|#FFFFFF
+Georgetown|GTWN|#041E42|#8D817B
+DePaul|DEP|#005EB8|#E4002B
+Saint Mary's|SMC|#06315B|#D80024|st marys,saint marys
+San Diego State|SDSU|#A6192E|#000000
+Dayton|DAY|#CE1141|#004B8D
+VCU|VCU|#000000|#FFB300
+Drake|DRAKE|#004477|#FFFFFF
+New Mexico|UNM|#BA0C2F|#A7A8AA
+Utah State|USU|#0F2439|#FFFFFF
+Boise State|BSU|#0033A0|#D64309
+Saint Louis|SLU|#003DA5|#FFFFFF
+Wichita State|WSU|#000000|#FFCD00
+Florida Atlantic|FAU|#003366|#CC0000
+McNeese|MCN|#00529B|#FFD204|mcneese state
+Liberty|LIB|#002D62|#C41230
+Grand Canyon|GCU|#522398|#FFFFFF
+Akron|AKR|#041E42|#A89968
+Ohio|OHIO|#00694E|#FFFFFF
+Davidson|DAV|#AC1A2F|#000000
+Nevada|NEV|#003366|#807F84
+UNLV|UNLV|#CF0A2C|#666666
+Colorado State|CSU|#1E4D2B|#C8C372`;
+
+const norm = s => (s||"").toLowerCase().replace(/&/g," and ").replace(/['’.()]/g,"").replace(/[-_]/g," ").replace(/\s+/g," ").trim();
+const TEAMS = new Map();
+TEAM_DATA.split("\n").forEach(line=>{
+  const [name,abbr,p,s,al] = line.split("|");
+  const t = {name,abbr,p,s};
+  TEAMS.set(norm(name),t);
+  (al||"").split(",").filter(Boolean).forEach(a=>TEAMS.set(norm(a),t));
+});
+function teamInfo(name){
+  const t = TEAMS.get(norm(name));
+  if(t) return t;
+  const words = name.replace(/[^A-Za-z0-9 ]/g,"").split(/\s+/).filter(Boolean);
+  const abbr = (words.length>1 ? words.map(w=>w[0]).join("") : (words[0]||"?").slice(0,4)).toUpperCase().slice(0,4);
+  return {name, abbr, p:"#3A3F4B", s:"#C9CED8"};
+}
+
+/* ---------- Examples ---------- */
+const EX25 = {
+  kicker:"2026-27 Men's College Basketball",
+  title:"Power 25",
+  week:"Post-Week 2",
+  list:`Florida, 3-0, 1
+UConn, 3-0, 2
+Michigan State, 3-0, 5
+Virginia, 3-0, 4
+Duke, 2-1, 3
+Kansas, 3-0, 7
+Texas, 3-0, 6
+Houston, 2-1, 8
+Illinois, 3-0, 9
+St. John's, 3-0, 12
+UCLA, 2-1, 10
+Arizona, 2-1, 11
+Texas Tech, 3-0, 14
+Vanderbilt, 3-0, NR
+Miami, 3-0, 16
+Alabama, 2-1, 13
+Gonzaga, 2-1, 15
+Nebraska, 3-0, 21
+BYU, 2-1, 17
+Arkansas, 2-1, 18
+Memphis, 3-0, 24
+Tennessee, 2-1, 19
+LSU, 3-0, NR
+Louisville, 1-2, 20
+Michigan, 2-1, 22`,
+  next:"USC, Texas A&M, High Point, Xavier, Baylor",
+  tiers:`1-4, Title Favorites
+5-10, Final Four Threats
+11-18, Second Weekend
+19-25, Prove It`
+};
+const EXB12 = {
+  kicker:"2026-27 Big 12",
+  title:"Power Rankings",
+  week:"Preseason",
+  list:`Arizona
+Houston
+Kansas
+Texas Tech
+Iowa State
+BYU
+Cincinnati
+TCU
+West Virginia
+Baylor
+Oklahoma State
+Arizona State
+UCF
+Kansas State
+Colorado
+Utah`,
+  next:"",
+  tiers:`1-4, Contenders
+5-9, Tournament Teams
+10-12, Bubble
+13-16, Rebuilding`
+};
+
+/* ---------- State ---------- */
+const ACCENTS = [
+  {name:"Orange",v:"#FF6B1A"},
+  {name:"Scarlet",v:"#D7263D"},
+  {name:"Gold",v:"#F2B705"},
+  {name:"Sky",v:"#2EB6F0"},
+  {name:"Lime",v:"#8BD346"}
+];
+const KEY = "rankings-studio-v1";
+const LOGO_KEY = "rankings-studio-logos-v1";
+let state = Object.assign({tpl:"primetime",size:"feed",accent:"#FF6B1A",handle:"@rhymetime05",brand:"Rhymetime's"}, EX25);
+try{ const s = JSON.parse(localStorage.getItem(KEY)||"null"); if(s) Object.assign(state,s); }catch(e){}
+let logos = {}; // normName -> {src,img}
+try{
+  const L = JSON.parse(localStorage.getItem(LOGO_KEY)||"{}");
+  Object.entries(L).forEach(([k,src])=>addLogo(k,src,false));
+}catch(e){}
+
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+function saveLogos(){
+  try{ const o={}; Object.entries(logos).forEach(([k,v])=>o[k]=v.src); localStorage.setItem(LOGO_KEY, JSON.stringify(o)); }
+  catch(e){ setStatus("Logos are loaded, but this browser could not remember them for next time."); }
+}
+function addLogo(key,src,persist){
+  const img = new Image();
+  img.onload = ()=>{ logos[key]={src,img}; renderLogoList(); render(); if(persist) saveLogos(); };
+  img.src = src;
+}
+
+/* ---------- Parsing ---------- */
+function parseList(text){
+  const rows = [];
+  text.split("\n").forEach(line=>{
+    line = line.trim(); if(!line) return;
+    const parts = line.split(/\s*[,|\t]\s*/);
+    const name = parts[0].replace(/^\d+\s*[.)-]?\s+/,"").trim();
+    if(!name) return;
+    rows.push({name, record:(parts[1]||"").trim(), prevRaw:(parts[2]||"").trim()});
+  });
+  rows.forEach((r,i)=>{
+    r.rank = i+1;
+    const pv = r.prevRaw;
+    if(/^(nr|new|unr|ur)$/i.test(pv)) r.mv = {t:"new"};
+    else if(/^\d+$/.test(pv)){ const d = parseInt(pv,10)-r.rank; r.mv = d===0?{t:"same"}:{t:d>0?"up":"down",n:Math.abs(d),d}; }
+    else r.mv = null;
+    r.team = teamInfo(r.name);
+  });
+  return rows;
+}
+function parseTiers(text,n){
+  const out=[];
+  (text||"").split("\n").forEach(l=>{
+    const m = l.trim().match(/^(\d+)\s*-\s*(\d+)\s*[,|:]?\s*(.*)$/);
+    if(m){ const a=+m[1], b=+m[2]; if(a<=n) out.push({a,b:Math.min(b,n),label:m[3]||""}); }
+  });
+  return out.sort((x,y)=>x.a-y.a);
+}
+function movers(rows){
+  let up=null, dn=null;
+  rows.forEach(r=>{ if(r.mv&&r.mv.d){ if(r.mv.d>0&&(!up||r.mv.d>up.mv.d)) up=r; if(r.mv.d<0&&(!dn||r.mv.d<dn.mv.d)) dn=r; }});
+  return {up,dn};
+}
+
+/* ---------- Canvas helpers ---------- */
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+function font(w,s,f){ return `${w} ${Math.round(s)}px "${f}"`; }
+function spacing(px){ if("letterSpacing" in ctx) ctx.letterSpacing = px+"px"; }
+function fitText(text,maxW,weight,size,family,min){
+  min = min||size*0.5;
+  let s=size; ctx.font=font(weight,s,family);
+  while(ctx.measureText(text).width>maxW && s>min){ s-=1; ctx.font=font(weight,s,family); }
+  return s;
+}
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x,y,w,h,r) : ctx.rect(x,y,w,h); }
+function lum(hex){
+  const c=hex.replace("#",""); const v=[0,2,4].map(i=>parseInt(c.substr(i,2),16)/255).map(x=>x<=.03928?x/12.92:Math.pow((x+.055)/1.055,2.4));
+  return .2126*v[0]+.7152*v[1]+.0722*v[2];
+}
+function hexA(hex,a){ const c=hex.replace("#",""); return `rgba(${parseInt(c.substr(0,2),16)},${parseInt(c.substr(2,2),16)},${parseInt(c.substr(4,2),16)},${a})`; }
+function rng(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+function logoFor(row){
+  return logos[norm(row.name)] || logos[norm(row.team.name)] || null;
+}
+function badge(row,cx,cy,r,ringOnLight){
+  const L = logoFor(row);
+  if(L){
+    const im=L.img, sc=Math.min((r*2.1)/im.width,(r*2.1)/im.height);
+    ctx.drawImage(im,cx-im.width*sc/2,cy-im.height*sc/2,im.width*sc,im.height*sc);
+    return;
+  }
+  const t=row.team;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fillStyle=t.p; ctx.fill();
+  let ring=t.s; if(ringOnLight && lum(ring)>.8) ring="#00000022";
+  ctx.lineWidth=Math.max(2,r*0.12); ctx.strokeStyle=ring;
+  ctx.beginPath(); ctx.arc(cx,cy,r-ctx.lineWidth/2,0,Math.PI*2); ctx.stroke();
+  const txt = lum(t.p)>.45 ? "#111111" : "#FFFFFF";
+  ctx.fillStyle=txt; ctx.textAlign="center"; ctx.textBaseline="middle";
+  const s=fitText(t.abbr,r*1.5,800,r*0.78,"Barlow Condensed",8);
+  ctx.font=font(800,s,"Barlow Condensed"); ctx.fillText(t.abbr,cx,cy+1);
+}
+function chip(mv,x,y,w,h,C){
+  if(!mv) return;
+  ctx.textBaseline="middle"; ctx.textAlign="center";
+  const cy=y+h/2;
+  if(mv.t==="same"){
+    ctx.fillStyle=C.neutral; ctx.fillRect(x+w/2-h*0.3,cy-2,h*0.6,4); return;
+  }
+  const col = mv.t==="up"?C.up : mv.t==="down"?C.down : C.newc;
+  rr(x,y,w,h,h/2); ctx.fillStyle=hexA(col,C.chipAlpha); ctx.fill();
+  if(mv.t==="new"){
+    ctx.fillStyle=C.newText||col; ctx.font=font(800,h*0.62,"Barlow Condensed"); spacing(1);
+    ctx.fillText("NEW",x+w/2,cy+1); spacing(0); return;
+  }
+  const ts=h*0.34, tx=x+w*0.32;
+  ctx.fillStyle=col; ctx.beginPath();
+  if(mv.t==="up"){ ctx.moveTo(tx-ts,cy+ts*0.6); ctx.lineTo(tx+ts,cy+ts*0.6); ctx.lineTo(tx,cy-ts*0.8); }
+  else { ctx.moveTo(tx-ts,cy-ts*0.6); ctx.lineTo(tx+ts,cy-ts*0.6); ctx.lineTo(tx,cy+ts*0.8); }
+  ctx.fill();
+  ctx.font=font(800,h*0.7,"Barlow Condensed"); ctx.fillText(String(mv.n),x+w*0.66,cy+1);
+}
+function ball(cx,cy,r,col,lw){
+  ctx.save(); ctx.strokeStyle=col; ctx.lineWidth=lw;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx-r,cy); ctx.lineTo(cx+r,cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,cy-r); ctx.lineTo(cx,cy+r); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(cx-r*1.05,cy,r*0.62,r*0.86,0,-Math.PI/2.4,Math.PI/2.4); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(cx+r*1.05,cy,r*0.62,r*0.86,0,Math.PI-Math.PI/2.4,Math.PI+Math.PI/2.4); ctx.stroke();
+  ctx.restore();
+}
+
+/* Generic team row. S = style spec */
+function drawRow(row,x,y,w,h,S){
+  if(S.rowBg){ rr(x,y,w,h,S.radius||0); ctx.fillStyle=S.rowBg(row); ctx.fill(); }
+  ctx.fillStyle=row.team.p; ctx.fillRect(x,y,S.bar,h);
+  const rankW = h*1.05;
+  ctx.textBaseline="middle"; ctx.textAlign="right";
+  ctx.fillStyle = S.rankColor(row);
+  ctx.font=font(S.rankWeight,h*S.rankScale,S.rankFont);
+  ctx.fillText(String(row.rank),x+S.bar+rankW-6,y+h/2+h*0.04);
+  const r=h*0.34, cx=x+S.bar+rankW+r+8;
+  badge(row,cx,y+h/2,r,S.light);
+  const chipW=h*0.95, chipH=h*0.44, chipX=x+w-chipW-10;
+  chip(row.mv,chipX,y+(h-chipH)/2,chipW,chipH,S.chip);
+  let right = row.mv ? chipX-12 : x+w-14;
+  if(row.record){
+    ctx.textAlign="right"; ctx.fillStyle=S.recColor; ctx.font=font(600,h*0.34,"Barlow Condensed");
+    ctx.fillText(row.record,right,y+h/2+2);
+    right -= ctx.measureText(row.record).width+14;
+  }
+  const nx=cx+r+14, name=S.upper?row.name.toUpperCase():row.name;
+  const s=fitText(name,right-nx,S.nameWeight,h*S.nameScale,S.nameFont,10);
+  ctx.textAlign="left"; ctx.fillStyle=S.nameColor; ctx.font=font(S.nameWeight,s,S.nameFont);
+  ctx.fillText(name,nx,y+h/2+h*0.03);
+}
+
+/* Footer: next-up line, movers, handle */
+function footer(rows,x,y,w,C){
+  const m=movers(rows), nxt=(state.next||"").split(",").map(s=>s.trim()).filter(Boolean);
+  ctx.textBaseline="alphabetic";
+  let line1y=y+34;
+  if(nxt.length){
+    ctx.textAlign="left"; ctx.font=font(800,26,"Barlow Condensed"); spacing(2); ctx.fillStyle=C.label;
+    const lab = C.nextLabel||"NEXT UP"; ctx.fillText(lab,x,line1y); const lw=ctx.measureText(lab).width; spacing(0);
+    const txt=nxt.join("  ·  ").toUpperCase();
+    const s=fitText(txt,w-lw-20,600,28,"Barlow Condensed",14);
+    ctx.fillStyle=C.text; ctx.font=font(600,s,"Barlow Condensed"); ctx.fillText(txt,x+lw+18,line1y);
+  } else line1y=y;
+  const y2=line1y+46;
+  let limit=x+w;
+  if(state.handle){ ctx.textAlign="right"; ctx.fillStyle=C.handle; ctx.font=font(800,30,C.handleFont||"Barlow Condensed"); ctx.fillText(state.handle,x+w,y2); limit-=ctx.measureText(state.handle).width+30; }
+  const segs=[]; if(m.up) segs.push(["BIGGEST JUMP",`${m.up.name.toUpperCase()} +${m.up.mv.n}`,C.up]); if(m.dn) segs.push(["BIGGEST DROP",`${m.dn.name.toUpperCase()} −${m.dn.mv.n}`,C.down]);
+  let fs=24;
+  const widthAt=s=>segs.reduce((t,[l,v])=>{ ctx.font=font(600,s,"Barlow Condensed"); spacing(1.5); let a=ctx.measureText(l).width; spacing(0); ctx.font=font(700,s,"Barlow Condensed"); return t+a+8+ctx.measureText(v).width+24; },0);
+  while(segs.length && widthAt(fs)>limit-x && fs>16) fs--;
+  if(segs.length>1 && widthAt(fs)>limit-x) segs.pop();
+  ctx.textAlign="left"; let cx=x;
+  segs.forEach(([lab,val,col])=>{ ctx.font=font(600,fs,"Barlow Condensed"); ctx.fillStyle=C.muted; spacing(1.5); ctx.fillText(lab,cx,y2); cx+=ctx.measureText(lab).width+8; spacing(0);
+    ctx.fillStyle=col; ctx.font=font(700,fs,"Barlow Condensed"); ctx.fillText(val,cx,y2); cx+=ctx.measureText(val).width+24; });
+}
+function footerH(rows){ return ((state.next||"").trim()?46:0)+70; }
+
+/* Brand ("Rhymetime's") set big, then the kicker on the same baseline */
+function kickerLine(x,y,maxW,bCol,bF,kCol,kF){
+  ctx.textBaseline="alphabetic"; ctx.textAlign="left";
+  const brand=(state.brand||"").trim().toUpperCase(), kick=(state.kicker||"").toUpperCase();
+  let bs=bF[1], ks=kF[1];
+  const total=()=>{ let t=0; if(brand){ ctx.font=font(bF[0],bs,bF[2]); spacing(1); t+=ctx.measureText(brand).width+16; }
+    ctx.font=font(kF[0],ks,kF[2]); spacing(4); t+=ctx.measureText(kick).width; spacing(0); return t; };
+  while(total()>maxW && ks>14){ bs*=0.97; ks*=0.97; }
+  let cx=x;
+  if(brand){ ctx.fillStyle=bCol; ctx.font=font(bF[0],bs,bF[2]); spacing(1); ctx.fillText(brand,cx,y); cx+=ctx.measureText(brand).width+16; spacing(0); }
+  ctx.fillStyle=kCol; ctx.font=font(kF[0],ks,kF[2]); spacing(4); ctx.fillText(kick,cx,y); spacing(0);
+}
+
+function columns(n){ return n>12 ? [Math.ceil(n/2), n-Math.ceil(n/2)] : [n]; }
+function rowHeight(n,bodyH,gap,cap){ const per=columns(n)[0]; return Math.min(cap,(bodyH-(per-1)*gap)/per); }
+
+/* ---------- Template: Primetime ---------- */
+function drawPrimetime(W,H,rows){
+  const A=state.accent, M=52;
+  const g=ctx.createLinearGradient(0,0,W,H); g.addColorStop(0,"#0B111F"); g.addColorStop(1,"#151F36");
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.save(); ctx.globalAlpha=.07; ctx.fillStyle=A;
+  for(let i=0;i<7;i++){ ctx.beginPath(); const x0=W-420+i*70; ctx.moveTo(x0,0); ctx.lineTo(x0+36,0); ctx.lineTo(x0-200,280); ctx.lineTo(x0-236,280); ctx.fill(); }
+  ctx.restore();
+  ball(W-120,150,230,"rgba(255,255,255,0.05)",6);
+
+  ctx.textBaseline="alphabetic"; ctx.textAlign="left";
+  kickerLine(M,96,W-2*M,"#FFFFFF",[900,46,"Big Shoulders Display"],A,[700,28,"Barlow Condensed"]);
+  const tt=(state.title||"").toUpperCase();
+  const ts=fitText(tt,W-2*M-300,900,132,"Big Shoulders Display",60);
+  ctx.fillStyle="#FFFFFF"; ctx.font=font(900,ts,"Big Shoulders Display"); ctx.fillText(tt,M-4,212);
+  if(state.week){
+    const wk=state.week.toUpperCase(); ctx.font=font(800,30,"Barlow Condensed"); spacing(2);
+    const ww=ctx.measureText(wk).width+40; const wx=W-M-ww;
+    ctx.save(); ctx.translate(wx,160); ctx.transform(1,0,-0.18,1,0,0); ctx.fillStyle=A; ctx.fillRect(0,0,ww,52); ctx.restore();
+    ctx.fillStyle=lum(A)>.4?"#0B111F":"#FFFFFF"; ctx.textBaseline="middle"; ctx.fillText(wk,wx+20-5,187); spacing(0);
+  }
+  ctx.fillStyle=A; ctx.fillRect(M,244,W-2*M,5);
+
+  const fh=footerH(rows), top=278, bottom=H-fh-34, gap=8;
+  const cols=columns(rows.length), cw = cols.length===2 ? (W-2*M-24)/2 : W-2*M;
+  const h=rowHeight(rows.length,bottom-top,gap,state.size==="story"?128:110);
+  const S={bar:7,rankFont:"Big Shoulders Display",rankWeight:900,rankScale:.66,
+    rankColor:r=>r.rank<=4?A:"#FFFFFF",nameFont:"Barlow Condensed",nameWeight:700,nameScale:.5,nameColor:"#FFFFFF",upper:true,
+    recColor:"#8F9AB0",rowBg:r=>r.rank%2?"rgba(255,255,255,0.055)":"rgba(255,255,255,0.025)",radius:4,
+    chip:{up:"#34D399",down:"#F87171",newc:A,neutral:"#56627A",chipAlpha:.16}};
+  let i=0; cols.forEach((n,c)=>{ for(let k=0;k<n;k++,i++) drawRow(rows[i],M+c*(cw+24),top+k*(h+gap),cw,h,S); });
+
+  ctx.fillStyle="rgba(255,255,255,0.12)"; ctx.fillRect(M,H-fh-14,W-2*M,2);
+  footer(rows,M,H-fh-8,W-2*M,{label:A,text:"#FFFFFF",muted:"#7D889E",up:"#34D399",down:"#F87171",handle:"#FFFFFF",handleFont:"Big Shoulders Display"});
+}
+
+/* ---------- Template: Hardwood ---------- */
+function drawHardwood(W,H,rows){
+  const A=state.accent, INK="#16110C", M=48, rand=rng(42);
+  ctx.fillStyle="#DDB27A"; ctx.fillRect(0,0,W,H);
+  for(let x=0;x<W;x+=54){ ctx.fillStyle=`rgba(${120+rand()*40|0},${70+rand()*30|0},20,${0.06+rand()*0.09})`; ctx.fillRect(x,0,54,H);
+    ctx.fillStyle="rgba(60,30,5,0.18)"; ctx.fillRect(x,0,1.5,H);
+    for(let yy=rand()*400; yy<H; yy+=300+rand()*500){ ctx.fillRect(x,yy,54,1.5); } }
+  ctx.save(); ctx.strokeStyle="rgba(255,250,240,0.45)"; ctx.lineWidth=6;
+  ctx.beginPath(); ctx.arc(W/2,H+120,560,Math.PI,0); ctx.stroke();
+  ctx.strokeRect(W/2-180,H-420,360,440);
+  ctx.beginPath(); ctx.arc(W/2,H-420,180,Math.PI,0); ctx.stroke(); ctx.restore();
+
+  ctx.textBaseline="alphabetic"; ctx.textAlign="left";
+  kickerLine(M,90,W-2*M-260,INK,[400,46,"Anton"],"#5A4128",[700,28,"Barlow Condensed"]);
+  const tt=(state.title||"").toUpperCase();
+  const ts=fitText(tt,W-2*M-250,400,128,"Anton",60);
+  ctx.font=font(400,ts,"Anton"); ctx.fillStyle=INK; ctx.fillText(tt,M,214);
+  ctx.fillStyle=A; ctx.fillRect(M,232,Math.min(ctx.measureText(tt).width,W-2*M),10);
+  if(state.week){
+    const wk=state.week.toUpperCase(); ctx.font=font(800,28,"Barlow Condensed"); spacing(2);
+    const ww=ctx.measureText(wk).width+36, wx=W-M-ww;
+    ctx.save(); ctx.translate(wx+ww/2,150); ctx.rotate(-0.05);
+    ctx.strokeStyle=INK; ctx.lineWidth=4; ctx.strokeRect(-ww/2,-28,ww,56);
+    ctx.fillStyle=INK; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(wk,0,2); ctx.restore(); spacing(0);
+  }
+
+  const fh=footerH(rows), bandTop=H-fh-26;
+  let top=270;
+  // Hero for #1
+  if(rows.length){
+    const r=rows[0], hh=state.size==="story"?190:150;
+    ctx.fillStyle=INK; rr(M,top,W-2*M,hh,6); ctx.fill();
+    ctx.fillStyle=r.team.p; ctx.fillRect(M,top,12,hh);
+    ctx.textBaseline="middle"; ctx.textAlign="left"; ctx.fillStyle=A; ctx.font=font(400,hh*0.86,"Anton"); ctx.fillText("1",M+38,top+hh/2+6);
+    const br=hh*0.32, bx=M+150+br; badge(r,bx,top+hh/2,br,false);
+    const cw=150; const chipX=W-M-cw-24;
+    if(r.mv) chip(r.mv,chipX+cw-hh*0.62,top+hh/2-hh*0.15,hh*0.6,hh*0.3,{up:"#4ADE80",down:"#F87171",newc:A,neutral:"#6B5F52",chipAlpha:.2});
+    if(r.record){ ctx.textAlign="right"; ctx.fillStyle="#C9B79E"; ctx.font=font(600,hh*0.24,"Barlow Condensed"); ctx.fillText(r.record,chipX+cw-hh*0.7-14,top+hh/2+3); }
+    const nm=r.name.toUpperCase(), s=fitText(nm,chipX-(bx+br+24)-40,400,hh*0.5,"Anton",20);
+    ctx.textAlign="left"; ctx.fillStyle="#FFF6E8"; ctx.font=font(400,s,"Anton"); ctx.fillText(nm,bx+br+24,top+hh/2+4);
+    top+=hh+16;
+  }
+  const rest=rows.slice(1), gap=8, bottom=bandTop-22;
+  const cols=columns(rest.length), cw=cols.length===2?(W-2*M-20)/2:W-2*M;
+  const h=rowHeight(rest.length,bottom-top,gap,state.size==="story"?120:104);
+  const S={bar:8,rankFont:"Anton",rankWeight:400,rankScale:.6,rankColor:()=>INK,
+    nameFont:"Barlow Condensed",nameWeight:700,nameScale:.5,nameColor:INK,upper:true,recColor:"#6E5B45",
+    rowBg:()=>"rgba(255,249,238,0.88)",radius:4,light:true,
+    chip:{up:"#15803D",down:"#B91C1C",newc:A,newText:INK,neutral:"#A89478",chipAlpha:.16}};
+  let i=0; cols.forEach((n,c)=>{ for(let k=0;k<n;k++,i++) drawRow(rest[i],M+c*(cw+20),top+k*(h+gap),cw,h,S); });
+
+  ctx.fillStyle=INK; ctx.fillRect(0,bandTop,W,H-bandTop);
+  ctx.fillStyle=A; ctx.fillRect(0,bandTop,W,6);
+  footer(rows,M,bandTop+8,W-2*M,{label:A,text:"#FFF6E8",muted:"#A8977F",up:"#4ADE80",down:"#F87171",handle:A,handleFont:"Anton"});
+}
+
+/* ---------- Template: Big Board ---------- */
+function drawBoard(W,H,rows){
+  const A=state.accent, NAVY="#0E1726", PAPER="#EAEEF3", M=48;
+  ctx.fillStyle=PAPER; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle="rgba(14,23,38,0.05)"; ctx.lineWidth=1;
+  for(let x=0;x<W;x+=36){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=0;y<H;y+=36){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  const hb=250; ctx.fillStyle=NAVY; ctx.fillRect(0,0,W,hb);
+  ball(W-90,hb/2,170,"rgba(255,255,255,0.06)",5);
+  ctx.fillStyle=A; ctx.fillRect(0,hb,W,8);
+  ctx.textBaseline="alphabetic"; ctx.textAlign="left";
+  kickerLine(M,90,W-2*M-140,"#FFFFFF",[400,42,"Archivo Black"],A,[700,28,"Archivo Narrow"]);
+  const tt=(state.title||"").toUpperCase(), ts=fitText(tt,W-2*M-260,400,104,"Archivo Black",50);
+  ctx.fillStyle="#FFFFFF"; ctx.font=font(400,ts,"Archivo Black"); ctx.fillText(tt,M-2,196);
+  if(state.week){ const wk=state.week.toUpperCase(); ctx.font=font(700,28,"Archivo Narrow"); spacing(2);
+    ctx.textAlign="right"; ctx.fillStyle="#C7D0DE"; ctx.fillText(wk,W-M,196); spacing(0); }
+
+  const tiers=parseTiers(state.tiers,rows.length);
+  const items=[]; let ti=0;
+  rows.forEach(r=>{ if(ti<tiers.length && tiers[ti].a===r.rank){ items.push({hdr:tiers[ti],idx:ti}); ti++; } items.push({row:r}); });
+  const HU=0.62, units=it=>it.hdr?HU:1;
+  // split into two columns balancing height
+  let split=items.length;
+  if(rows.length>12){
+    const total=items.reduce((s,it)=>s+units(it),0); let acc=0, best=1e9;
+    items.forEach((it,k)=>{ acc+=units(it); const d=Math.abs(acc-(total-acc)); if(d<best && !(it.hdr)){ best=d; split=k+1; } });
+  }
+  const colsI=[items.slice(0,split),items.slice(split)].filter(c=>c.length);
+  if(colsI[1] && colsI[1][0].row){
+    let last=null; colsI[0].forEach(it=>{ if(it.hdr) last=it; });
+    if(last) colsI[1].unshift({hdr:{label:(last.hdr.label?last.hdr.label+" ":"")+"(cont.)"},idx:last.idx});
+  }
+  const fh=footerH(rows), top=hb+36, bottom=H-fh-34, gap=7;
+  const maxU=Math.max(...colsI.map(c=>c.reduce((s,it)=>s+units(it),0)));
+  const maxN=Math.max(...colsI.map(c=>c.length));
+  const h=Math.min(state.size==="story"?124:104,(bottom-top-(maxN-1)*gap)/maxU);
+  const cw=colsI.length===2?(W-2*M-24)/2:W-2*M;
+  const S={bar:9,rankFont:"Archivo Black",rankWeight:400,rankScale:.5,rankColor:()=>NAVY,
+    nameFont:"Archivo Narrow",nameWeight:700,nameScale:.46,nameColor:NAVY,upper:true,recColor:"#66758C",
+    rowBg:()=>"#FFFFFF",radius:3,light:true,
+    chip:{up:"#15803D",down:"#C2410C",newc:A,newText:NAVY,neutral:"#A5B0C0",chipAlpha:.14}};
+  colsI.forEach((col,c)=>{
+    let y=top; const x=M+c*(cw+24);
+    col.forEach(it=>{
+      if(it.hdr){
+        const hh=h*HU; ctx.textBaseline="middle"; ctx.textAlign="left";
+        const lab=`TIER ${it.idx+1}`; ctx.font=font(400,hh*0.5,"Archivo Black"); ctx.fillStyle=A; ctx.fillText(lab,x,y+hh/2);
+        let lx=x+ctx.measureText(lab).width+12;
+        if(it.hdr.label){ ctx.font=font(700,hh*0.52,"Archivo Narrow"); spacing(1.5); ctx.fillStyle=NAVY; const L=it.hdr.label.toUpperCase(); ctx.fillText(L,lx,y+hh/2+1); lx+=ctx.measureText(L).width+14; spacing(0); }
+        ctx.fillStyle="rgba(14,23,38,0.25)"; ctx.fillRect(lx,y+hh/2,x+cw-lx,2);
+        y+=hh+gap;
+      } else { ctx.save(); ctx.shadowColor="rgba(14,23,38,0.10)"; ctx.shadowBlur=8; ctx.shadowOffsetY=2;
+        rr(x,y,cw,h,3); ctx.fillStyle="#FFFFFF"; ctx.fill(); ctx.restore();
+        drawRow(it.row,x,y,cw,h,S); y+=h+gap; }
+    });
+  });
+  ctx.fillStyle="rgba(14,23,38,0.2)"; ctx.fillRect(M,H-fh-14,W-2*M,2);
+  footer(rows,M,H-fh-8,W-2*M,{label:A,text:NAVY,muted:"#66758C",up:"#15803D",down:"#C2410C",handle:NAVY,handleFont:"Archivo Narrow"});
+}
+
+/* ---------- Render ---------- */
+function render(){
+  const W=1080, H=state.size==="story"?1920:1350;
+  if(cv.height!==H){ cv.width=W; cv.height=H; }
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,W,H); spacing(0);
+  const rows=parseList(state.list||"");
+  ({primetime:drawPrimetime,hardwood:drawHardwood,board:drawBoard}[state.tpl]||drawPrimetime)(W,H,rows);
+}
+
+/* ---------- UI wiring ---------- */
+const $=id=>document.getElementById(id);
+const fields=["brand","kicker","title","week","handle","list","next","tiers"];
+function syncInputs(){ fields.forEach(f=>{ $(f).value=state[f]||""; }); syncButtons(); }
+function syncButtons(){
+  document.querySelectorAll("#tplSeg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===state.tpl));
+  document.querySelectorAll("#sizeSeg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===state.size));
+  document.querySelectorAll("#swatches button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===state.accent));
+  $("tiersWrap").style.display=state.tpl==="board"?"grid":"none";
+}
+ACCENTS.forEach(a=>{ const b=document.createElement("button"); b.className="sw"; b.dataset.v=a.v; b.style.background=a.v; b.setAttribute("aria-label",a.name+" accent"); b.onclick=()=>{state.accent=a.v;update();}; $("swatches").appendChild(b); });
+document.querySelectorAll("#tplSeg button").forEach(b=>b.onclick=()=>{state.tpl=b.dataset.v;update();});
+document.querySelectorAll("#sizeSeg button").forEach(b=>b.onclick=()=>{state.size=b.dataset.v;update();});
+fields.forEach(f=>$(f).addEventListener("input",()=>{state[f]=$(f).value;save();render();}));
+function update(){ syncButtons(); save(); render(); }
+$("ex25").onclick=()=>{ Object.assign(state,EX25); syncInputs(); update(); setStatus("Loaded the Top 25 example. Records and last-week ranks are sample values, so update them before posting."); };
+$("exB12").onclick=()=>{ Object.assign(state,EXB12); syncInputs(); update(); setStatus("Loaded the Big 12 example."); };
+
+function setStatus(t){ $("status").textContent=t; }
+function renderLogoList(){
+  const box=$("logoList"); box.innerHTML="";
+  Object.keys(logos).sort().forEach(k=>{ const c=document.createElement("span"); c.className="chip"; c.textContent=k;
+    const x=document.createElement("button"); x.setAttribute("aria-label","Remove "+k+" logo"); x.textContent="×";
+    x.onclick=()=>{ delete logos[k]; saveLogos(); renderLogoList(); render(); }; c.appendChild(x); box.appendChild(c); });
+}
+$("logoBtn").onclick=()=>$("logoInput").click();
+$("logoInput").onchange=e=>{
+  [...e.target.files].forEach(file=>{
+    const key=norm(file.name.replace(/\.[^.]+$/,""));
+    const fr=new FileReader();
+    fr.onload=()=>{
+      const im=new Image(); im.onload=()=>{
+        const c=document.createElement("canvas"), sc=Math.min(1,256/Math.max(im.width,im.height));
+        c.width=Math.round(im.width*sc); c.height=Math.round(im.height*sc); c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+        addLogo(key,c.toDataURL("image/png"),true);
+      }; im.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+  e.target.value="";
+  setStatus("Logos added. A logo shows when its file name matches the team name.");
+};
+$("logoClear").onclick=()=>{ logos={}; saveLogos(); renderLogoList(); render(); };
+
+function fileName(){ return ((state.title||"rankings")+" "+(state.week||"")).trim().toLowerCase().replace(/[^a-z0-9]+/g,"-")+".png"; }
+$("openBtn").onclick=()=>{ $("outImg").src=cv.toDataURL("image/png"); $("overlay").classList.add("show"); $("closeOv").focus(); };
+$("closeOv").onclick=()=>$("overlay").classList.remove("show");
+$("overlay").addEventListener("click",e=>{ if(e.target.id==="overlay") $("overlay").classList.remove("show"); });
+
+let downloads=null;
+const hosted = !!(window.claude && typeof window.claude.use==="function");
+if(hosted){
+  window.claude.use("downloads").then(d=>{ downloads=d; if(d) $("saveBtn").hidden=false; }).catch(()=>{});
+} else {
+  $("saveBtn").hidden=false;
+}
+$("saveBtn").onclick=()=>{
+  if(!hosted){
+    cv.toBlob(blob=>{ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=fileName();
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); setStatus("Saved."); },"image/png");
+    return;
+  }
+  if(!downloads) return;
+  cv.toBlob(async blob=>{
+    try{ await downloads.save({filename:fileName(),data:blob}); setStatus("Saved."); }
+    catch(err){
+      const code=err&&err.code;
+      if(code==="declined") setStatus("Save canceled.");
+      else if(code==="rate_limited") setStatus("A save prompt is already open. Try again in a moment.");
+      else { setStatus("Saving is not available here. Use Open image to save instead."); $("saveBtn").hidden=true; }
+    }
+  },"image/png");
+};
+
+syncInputs(); renderLogoList(); render();
+const fontsToLoad=['900 40px "Big Shoulders Display"','800 40px "Big Shoulders Display"','400 40px "Anton"','400 40px "Archivo Black"','700 40px "Archivo Narrow"','600 40px "Barlow Condensed"','700 40px "Barlow Condensed"','800 40px "Barlow Condensed"'];
+if(document.fonts && document.fonts.load){
+  Promise.all(fontsToLoad.map(f=>document.fonts.load(f).catch(()=>{}))).then(render);
+  document.fonts.addEventListener && document.fonts.addEventListener("loadingdone",render);
+}
+})();
+</script>
+</body>
+</html>
