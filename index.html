@@ -103,7 +103,7 @@ textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;
           <button data-v="vintage">Vintage</button>
           <button data-v="graywash">Graywash</button>
         </div>
-        <div class="seg"><button id="paintBtn" aria-pressed="false">Court paint</button></div>
+        <div class="seg"><button id="paintBtn" aria-pressed="false">Court paint</button><button id="heroBtn" aria-pressed="true">#1 spotlight</button></div>
       </div>
       <div class="seg" id="sizeSeg" role="group" aria-label="Size">
         <button data-v="feed">Feed post 4:5</button>
@@ -377,7 +377,7 @@ const ACCENTS = [
 ];
 const KEY = "rankings-studio-v1";
 const LOGO_KEY = "rankings-studio-logos-v1";
-let state = Object.assign({tpl:"primetime",size:"feed",accent:"#FF6B1A",handle:"@rhymetime05",brand:"Rhymetime's",wood:"honey",paint:false}, EX25);
+let state = Object.assign({tpl:"primetime",size:"feed",accent:"#FF6B1A",handle:"@rhymetime05",brand:"Rhymetime's",wood:"honey",paint:false,hero:true}, EX25);
 try{ const s = JSON.parse(localStorage.getItem(KEY)||"null"); if(s) Object.assign(state,s); }catch(e){}
 let logos = {}; // normName -> {src,img}
 try{
@@ -667,8 +667,9 @@ function drawHardwood(W,H,rows){
 
   const fh=footerH(rows), bandTop=H-fh-26;
   let top=270;
-  // Hero for #1
-  if(rows.length){
+  // Hero for #1 (optional)
+  const hero = state.hero!==false && rows.length>0;
+  if(hero){
     const r=rows[0], hh=state.size==="story"?190:150;
     ctx.fillStyle=INK; rr(M,top,W-2*M,hh,6); ctx.fill();
     ctx.fillStyle=r.team.p; ctx.fillRect(M,top,12,hh);
@@ -682,7 +683,7 @@ function drawHardwood(W,H,rows){
     ctx.textAlign="left"; ctx.fillStyle="#FFF6E8"; ctx.font=font(400,s,"Anton"); ctx.fillText(nm,bx+br+24,top+hh/2+4);
     top+=hh+16;
   }
-  const rest=rows.slice(1), gap=8, bottom=bandTop-22;
+  const rest=hero?rows.slice(1):rows, gap=8, bottom=bandTop-22;
   const cols=columns(rest.length), cw=cols.length===2?(W-2*M-20)/2:W-2*M;
   const h=rowHeight(rest.length,bottom-top,gap,state.size==="story"?120:104);
   const S={bar:8,rankFont:"Anton",rankWeight:400,rankScale:.6,rankColor:()=>INK,
@@ -975,6 +976,7 @@ function syncButtons(){
   $("woodWrap").style.display=state.tpl==="hardwood"?"grid":"none";
   document.querySelectorAll("#woodSeg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===state.wood));
   $("paintBtn").setAttribute("aria-pressed",!!state.paint);
+  $("heroBtn").setAttribute("aria-pressed",state.hero!==false);
   $("accentPick").value=state.accent;
 }
 ACCENTS.forEach(a=>{ const b=document.createElement("button"); b.className="sw"; b.dataset.v=a.v; b.style.background=a.v; b.setAttribute("aria-label",a.name+" accent"); b.onclick=()=>{state.accent=a.v;update();}; $("swatches").appendChild(b); });
@@ -982,6 +984,7 @@ document.querySelectorAll("#tplSeg button").forEach(b=>b.onclick=()=>{state.tpl=
 document.querySelectorAll("#sizeSeg button").forEach(b=>b.onclick=()=>{state.size=b.dataset.v;update();});
 document.querySelectorAll("#woodSeg button").forEach(b=>b.onclick=()=>{state.wood=b.dataset.v;update();});
 $("paintBtn").onclick=()=>{state.paint=!state.paint;update();};
+$("heroBtn").onclick=()=>{state.hero=(state.hero===false);update();};
 $("accentPick").addEventListener("input",e=>{state.accent=e.target.value.toUpperCase();update();});
 fields.forEach(f=>$(f).addEventListener("input",()=>{state[f]=$(f).value;save();render();}));
 function update(){ syncButtons(); save(); render(); }
